@@ -1,0 +1,213 @@
+// Prisma schema for the resistance training & nutrition app.
+// Default datasource is SQLite for local dev; switch to postgresql for Vercel
+// by editing `provider` and pointing DATABASE_URL at Vercel Postgres.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Auth (NextAuth.js) ────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+
+  accounts  Account[]
+  sessions  Session[]
+  profile   Profile?
+  macroGoal MacroGoal?
+  workouts  WorkoutSession[]
+  meals     Meal[]
+  plans     MealPlan[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── Profile / settings ────────────────────────────────────────────────────
+
+model Profile {
+  id        String  @id @default(cuid())
+  userId    String  @unique
+  gender    String  @default("male") // male | female
+  units     String  @default("metric") // metric | imperial
+  heightCm  Float?
+  weightKg  Float?
+  restrictions String   @default("[]") // JSON array of dietary restriction strings
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model MacroGoal {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  goal      String   @default("maintain") // maintain | lean_bulk | fat_loss | aggressive_cut
+  calories  Int      @default(2400)
+  proteinG  Int      @default(170)
+  carbsG    Int      @default(260)
+  fatG      Int      @default(75)
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Exercises ────────────────────────────────────────────────────────────
+
+model Exercise {
+  id                String   @id @default(cuid())
+  slug              String   @unique
+  name              String
+  primaryMuscle     String   // matches MuscleGroupId
+  secondaryMuscles  String   @default("[]") // JSON array
+  equipment         String   // barbell | dumbbell | machine | cable | bodyweight | kettlebell
+  difficulty        String   // beginner | intermediate | advanced
+  setsRepsByGoal   String   // JSON: { strength, hypertrophy, endurance }
+  restSeconds       Int
+  researchScore     Float
+  scoreBreakdown   String   // JSON: { emg, hypertrophyMeta, replication, practical }
+  evidenceCitations String   @default("[]") // JSON array of citation objects
+  techniqueSteps    String   @default("[]") // JSON array of strings
+  commonMistakes    String   @default("[]") // JSON array of strings
+  safetyNotes       String   @default("")
+  videoUrl          String?
+  createdAt         DateTime @default(now())
+
+  sessionExercises SessionExercise[]
+}
+
+// ─── Workout sessions ─────────────────────────────────────────────────────
+
+model WorkoutSession {
+  id        String    @id @default(cuid())
+  userId    String
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  notes     String?
+
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercises SessionExercise[]
+}
+
+model SessionExercise {
+  id           String   @id @default(cuid())
+  sessionId    String
+  exerciseId   String
+  orderIndex   Int      @default(0)
+  session      WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exercise     Exercise  @relation(fields: [exerciseId], references: [id])
+  sets         SessionSet[]
+}
+
+model SessionSet {
+  id                 String  @id @default(cuid())
+  sessionExerciseId  String
+  setNumber          Int
+  weightKg           Float?
+  reps               Int
+  rpe                Float?
+  completed          Boolean @default(true)
+  sessionExercise    SessionExercise @relation(fields: [sessionExerciseId], references: [id], onDelete: Cascade)
+}
+
+// ─── Meals ────────────────────────────────────────────────────────────────
+
+model Meal {
+  id            String   @id @default(cuid())
+  userId        String
+  loggedAt      DateTime @default(now())
+  mealType      String   @default("snack") // breakfast | lunch | dinner | snack
+  name          String
+  photoUrl      String?
+  description   String?
+  calories      Int
+  proteinG      Float
+  carbsG        Float
+  fatG          Float
+  aiConfidence  String?  // high | medium | low
+  aiCaveats     String   @default("[]") // JSON array
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items         MealItem[]
+}
+
+model MealItem {
+  id            String  @id @default(cuid())
+  mealId        String
+  name          String
+  estimatedGrams Float
+  calories      Int
+  proteinG      Float
+  carbsG        Float
+  fatG          Float
+  confidence    String  @default("medium")
+  notes         String?
+  meal          Meal    @relation(fields: [mealId], references: [id], onDelete: Cascade)
+}
+
+// ─── Meal plans ───────────────────────────────────────────────────────────
+
+model MealPlan {
+  id           String   @id @default(cuid())
+  userId       String
+  name         String
+  timeframe    String   // day | week
+  mealsPerDay  Int
+  restrictions String   @default("[]") // JSON
+  targets      String   @default("{}") // JSON snapshot of macro targets
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  meals        MealPlanMeal[]
+}
+
+model MealPlanMeal {
+  id          String  @id @default(cuid())
+  planId      String
+  dayIndex    Int     @default(0)
+  mealIndex   Int
+  name        String
+  ingredients String  // JSON: [{ name, grams }]
+  prep        String
+  calories    Int
+  proteinG    Float
+  carbsG      Float
+  fatG        Float
+  plan        MealPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+}

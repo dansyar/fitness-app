@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "prisma generate && next build",
+  "framework": "nextjs",
+  "functions": {
+    "src/app/api/analyze-meal/route.ts": { "maxDuration": 60 },
+    "src/app/api/generate-meal-plan/route.ts": { "maxDuration": 60 }
+  }
+}
