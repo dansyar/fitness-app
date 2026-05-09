@@ -1,13 +1,11 @@
 // Prisma schema for the resistance training & nutrition app.
-// Default datasource is SQLite for local dev; switch to postgresql for Vercel
-// by editing `provider` and pointing DATABASE_URL at Vercel Postgres.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
