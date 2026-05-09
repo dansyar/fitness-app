@@ -1,25 +1,19 @@
 import NextAuth, { type NextAuthConfig } from "next-auth";
 import Google from "next-auth/providers/google";
-import Email from "next-auth/providers/nodemailer";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/db";
 
 const providers: NextAuthConfig["providers"] = [];
 
-if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+const googleClientId = process.env.AUTH_GOOGLE_ID ?? process.env.GOOGLE_CLIENT_ID;
+const googleClientSecret = process.env.AUTH_GOOGLE_SECRET ?? process.env.GOOGLE_CLIENT_SECRET;
+const authSecret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
+
+if (googleClientId && googleClientSecret) {
   providers.push(
     Google({
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    }),
-  );
-}
-
-if (process.env.EMAIL_SERVER && process.env.EMAIL_FROM) {
-  providers.push(
-    Email({
-      server: process.env.EMAIL_SERVER,
-      from: process.env.EMAIL_FROM,
+      clientId: googleClientId,
+      clientSecret: googleClientSecret,
     }),
   );
 }
@@ -27,6 +21,8 @@ if (process.env.EMAIL_SERVER && process.env.EMAIL_FROM) {
 export const authConfig: NextAuthConfig = {
   adapter: PrismaAdapter(prisma),
   providers,
+  ...(authSecret ? { secret: authSecret } : {}),
+  trustHost: process.env.AUTH_TRUST_HOST === "true" || process.env.VERCEL === "1",
   session: { strategy: "database" },
   pages: { signIn: "/signin" },
   callbacks: {
