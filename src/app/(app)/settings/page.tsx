@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Calculator } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +10,96 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const RESTRICTIONS = ["vegetarian", "vegan", "halal", "kosher", "gluten-free", "dairy-free", "nut-free"];
+
+type Gender = "male" | "female";
+type Units = "metric" | "imperial";
+type Goal = "maintain" | "lean_bulk" | "fat_loss" | "aggressive_cut";
+
+interface MacroEstimate {
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+}
+
+const CM_PER_IN = 2.54;
+const LB_PER_KG = 2.2046226218;
+const DEFAULT_AGE = 30;
+const ACTIVITY_MULTIPLIER = 1.55;
+
+const GOAL_CONFIG: Record<Goal, { calorieOffset: number; proteinPerKg: number; fatPerKg: number }> = {
+  maintain: { calorieOffset: 0, proteinPerKg: 1.8, fatPerKg: 0.8 },
+  lean_bulk: { calorieOffset: 250, proteinPerKg: 2, fatPerKg: 0.8 },
+  fat_loss: { calorieOffset: -450, proteinPerKg: 2.1, fatPerKg: 0.7 },
+  aggressive_cut: { calorieOffset: -650, proteinPerKg: 2.2, fatPerKg: 0.65 },
+};
+
+function parsePositiveNumber(value: string) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function roundToNearest(value: number, increment: number) {
+  return Math.round(value / increment) * increment;
+}
+
+function formatNumberForInput(value: number) {
+  const rounded = Math.round(value * 10) / 10;
+  return String(rounded);
+}
+
+function toStoredHeightCm(value: string, units: Units) {
+  const height = parsePositiveNumber(value);
+  if (!height) return null;
+  return units === "imperial" ? height * CM_PER_IN : height;
+}
+
+function toStoredWeightKg(value: string, units: Units) {
+  const weight = parsePositiveNumber(value);
+  if (!weight) return null;
+  return units === "imperial" ? weight / LB_PER_KG : weight;
+}
+
+function fromStoredHeightCm(value: number, units: Units) {
+  return units === "imperial" ? value / CM_PER_IN : value;
+}
+
+function fromStoredWeightKg(value: number, units: Units) {
+  return units === "imperial" ? value * LB_PER_KG : value;
+}
+
+function calculateMacroGoal({
+  gender,
+  goal,
+  heightCm,
+  weightKg,
+}: {
+  gender: Gender;
+  goal: Goal;
+  heightCm: number | null;
+  weightKg: number | null;
+}): MacroEstimate | null {
+  if (!heightCm || !weightKg) return null;
+
+  const config = GOAL_CONFIG[goal];
+  const genderAdjustment = gender === "male" ? 5 : -161;
+  const bmr = 10 * weightKg + 6.25 * heightCm - 5 * DEFAULT_AGE + genderAdjustment;
+  const calories = Math.max(
+    1200,
+    roundToNearest(bmr * ACTIVITY_MULTIPLIER + config.calorieOffset, 25),
+  );
+
+  const proteinG = Math.round(weightKg * config.proteinPerKg);
+  let fatG = Math.max(35, Math.round(weightKg * config.fatPerKg));
+  let carbsG = Math.round((calories - proteinG * 4 - fatG * 9) / 4);
+
+  if (carbsG < 75) {
+    carbsG = 75;
+    fatG = Math.max(30, Math.round((calories - proteinG * 4 - carbsG * 4) / 9));
+  }
+
+  return { calories, proteinG, carbsG, fatG };
+}
 
 interface ProfileResponse {
   profile: {
@@ -38,12 +129,12 @@ export default function SettingsPage() {
     },
   });
 
-  const [gender, setGender] = useState<"male" | "female">("male");
-  const [units, setUnits] = useState<"metric" | "imperial">("metric");
+  const [gender, setGender] = useState<Gender>("male");
+  const [units, setUnits] = useState<Units>("metric");
   const [heightCm, setHeightCm] = useState<string>("");
   const [weightKg, setWeightKg] = useState<string>("");
   const [restrictions, setRestrictions] = useState<string[]>([]);
-  const [goal, setGoal] = useState<"maintain" | "lean_bulk" | "fat_loss" | "aggressive_cut">("maintain");
+  const [goal, setGoal] = useState<Goal>("maintain");
   const [calories, setCalories] = useState(2400);
   const [proteinG, setProteinG] = useState(170);
   const [carbsG, setCarbsG] = useState(260);
@@ -52,20 +143,58 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!data) return;
     if (data.profile) {
-      setGender((data.profile.gender as "male" | "female") ?? "male");
-      setUnits((data.profile.units as "metric" | "imperial") ?? "metric");
-      setHeightCm(data.profile.heightCm ? String(data.profile.heightCm) : "");
-      setWeightKg(data.profile.weightKg ? String(data.profile.weightKg) : "");
+      const profileUnits = (data.profile.units as Units) ?? "metric";
+      setGender((data.profile.gender as Gender) ?? "male");
+      setUnits(profileUnits);
+      setHeightCm(
+        data.profile.heightCm
+          ? formatNumberForInput(fromStoredHeightCm(data.profile.heightCm, profileUnits))
+          : "",
+      );
+      setWeightKg(
+        data.profile.weightKg
+          ? formatNumberForInput(fromStoredWeightKg(data.profile.weightKg, profileUnits))
+          : "",
+      );
       setRestrictions(data.profile.restrictions ?? []);
     }
     if (data.macroGoal) {
-      setGoal(data.macroGoal.goal as typeof goal);
+      setGoal(data.macroGoal.goal as Goal);
       setCalories(data.macroGoal.calories);
       setProteinG(data.macroGoal.proteinG);
       setCarbsG(data.macroGoal.carbsG);
       setFatG(data.macroGoal.fatG);
     }
   }, [data]);
+
+  const calculatedMacroGoal = useMemo(
+    () =>
+      calculateMacroGoal({
+        gender,
+        goal,
+        heightCm: toStoredHeightCm(heightCm, units),
+        weightKg: toStoredWeightKg(weightKg, units),
+      }),
+    [gender, goal, heightCm, units, weightKg],
+  );
+
+  function handleUnitsChange(nextUnits: Units) {
+    if (nextUnits === units) return;
+
+    const storedHeight = toStoredHeightCm(heightCm, units);
+    const storedWeight = toStoredWeightKg(weightKg, units);
+    setUnits(nextUnits);
+    setHeightCm(storedHeight ? formatNumberForInput(fromStoredHeightCm(storedHeight, nextUnits)) : "");
+    setWeightKg(storedWeight ? formatNumberForInput(fromStoredWeightKg(storedWeight, nextUnits)) : "");
+  }
+
+  function applyCalculatedMacroGoal() {
+    if (!calculatedMacroGoal) return;
+    setCalories(calculatedMacroGoal.calories);
+    setProteinG(calculatedMacroGoal.proteinG);
+    setCarbsG(calculatedMacroGoal.carbsG);
+    setFatG(calculatedMacroGoal.fatG);
+  }
 
   const save = useMutation({
     mutationFn: async () => {
@@ -76,8 +205,8 @@ export default function SettingsPage() {
           profile: {
             gender,
             units,
-            heightCm: heightCm ? Number(heightCm) : undefined,
-            weightKg: weightKg ? Number(weightKg) : undefined,
+            heightCm: toStoredHeightCm(heightCm, units) ?? undefined,
+            weightKg: toStoredWeightKg(weightKg, units) ?? undefined,
             restrictions,
           },
           macroGoal: { goal, calories, proteinG, carbsG, fatG },
@@ -107,7 +236,7 @@ export default function SettingsPage() {
             <CardContent className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Gender</Label>
-                <Select value={gender} onValueChange={(v) => setGender(v as "male" | "female")}>
+                <Select value={gender} onValueChange={(v) => setGender(v as Gender)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -119,7 +248,7 @@ export default function SettingsPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>Units</Label>
-                <Select value={units} onValueChange={(v) => setUnits(v as "metric" | "imperial")}>
+                <Select value={units} onValueChange={(v) => handleUnitsChange(v as Units)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -130,11 +259,11 @@ export default function SettingsPage() {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="h">Height (cm)</Label>
+                <Label htmlFor="h">Height ({units === "imperial" ? "in" : "cm"})</Label>
                 <Input id="h" type="number" value={heightCm} onChange={(e) => setHeightCm(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="w">Weight (kg)</Label>
+                <Label htmlFor="w">Weight ({units === "imperial" ? "lb" : "kg"})</Label>
                 <Input id="w" type="number" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} />
               </div>
               <div className="sm:col-span-2 space-y-1.5">
@@ -167,17 +296,30 @@ export default function SettingsPage() {
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle>Macro goals</CardTitle>
-              <CardDescription>
-                Drives the diet rings and meal-plan generator. Adjust calories first; protein
-                should sit at 1.6-2.2g/kg of bodyweight.
-              </CardDescription>
+            <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
+              <div className="space-y-1.5">
+                <CardTitle>Macro goals</CardTitle>
+                <CardDescription>
+                  Drives the diet rings and meal-plan generator. Auto-calculate from your profile
+                  and goal, then tune any target.
+                </CardDescription>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto"
+                onClick={applyCalculatedMacroGoal}
+                disabled={!calculatedMacroGoal}
+              >
+                <Calculator />
+                Auto-calculate
+              </Button>
             </CardHeader>
             <CardContent className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-1.5 sm:col-span-2">
                 <Label>Goal</Label>
-                <Select value={goal} onValueChange={(v) => setGoal(v as typeof goal)}>
+                <Select value={goal} onValueChange={(v) => setGoal(v as Goal)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
