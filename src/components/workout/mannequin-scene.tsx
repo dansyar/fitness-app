@@ -20,6 +20,7 @@ import {
   type BodyPart,
   type MuscleOverlay,
 } from "./mannequin-geometry";
+import { AnatomyGLB, useGLBAvailability } from "./anatomy-glb";
 import type { MuscleGroupId } from "@/lib/muscles";
 import { useWorkoutStore } from "@/store/workout-store";
 
@@ -35,6 +36,9 @@ export function MannequinScene() {
   const cameraView = useWorkoutStore((s) => s.cameraView);
   const [interacting, setInteracting] = useState(false);
   const controlsRef = useRef<ElementRef<typeof OrbitControls>>(null);
+  // Probe for /models/anatomy.glb. If present we render the realistic
+  // anatomical model and skip the parametric figure entirely.
+  const glbState = useGLBAvailability();
 
   return (
     <Canvas
@@ -48,21 +52,28 @@ export function MannequinScene() {
         <ResponsiveCamera controlsRef={controlsRef} interacting={interacting} />
         <CameraRig view={cameraView} interacting={interacting} controlsRef={controlsRef} />
 
-        <group position={[0, -0.88, 0]}>
-          <LiveModel>
-            <BodyMesh body={body} />
-            {overlays.map((overlay) => (
-              <MuscleGroup key={overlay.muscle} overlay={overlay} interacting={interacting} />
-            ))}
-          </LiveModel>
-          <ContactShadows
-            position={[0, 0.001, 0]}
-            opacity={0.35}
-            scale={4}
-            blur={3}
-            far={2}
-          />
-        </group>
+        {glbState === "available" ? (
+          <Suspense fallback={null}>
+            <AnatomyGLB />
+          </Suspense>
+        ) : glbState === "missing" ? (
+          <group position={[0, -0.88, 0]}>
+            <LiveModel>
+              <BodyMesh body={body} />
+              {overlays.map((overlay) => (
+                <MuscleGroup key={overlay.muscle} overlay={overlay} interacting={interacting} />
+              ))}
+            </LiveModel>
+          </group>
+        ) : null}
+
+        <ContactShadows
+          position={[0, -0.879, 0]}
+          opacity={0.35}
+          scale={4}
+          blur={3}
+          far={2}
+        />
 
         <OrbitControls
           ref={controlsRef}

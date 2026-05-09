@@ -111,19 +111,24 @@ prisma/
 
 ## The mannequin
 
-A single neutral, anatomically-referenced figure is generated parametrically
-from ellipsoids and capsules — see `src/components/workout/mannequin-geometry.ts`.
-Tune the `STANDARD_PROPORTIONS` constant if you want a different build.
-This was a deliberate trade-off:
+The workout tab supports two rendering paths, picked automatically:
 
-- **Pro**: hit-detection for muscle groups is trivial. Each muscle group is
-  one or more meshes inflated slightly above the body surface, so a raycast
-  hits the muscle before the underlying body. No GLB submesh wrangling.
-- **Pro**: tiny payload — no GLB to download.
-- **Con**: it's anatomically simplified. For a real product you'd swap in a
-  Mixamo X-Bot/Y-Bot rig, ReadyPlayer.me asset, or a custom skinned model
-  in `/public/models/` and wire the muscle overlays as transparent decals.
-  The interface in `mannequin-geometry.ts` is the swap point.
+1. **GLB anatomy model** (preferred). Drop a named-submesh anatomy GLB at
+   `public/models/anatomy.glb` and it loads at runtime via
+   `@react-three/drei`'s `useGLTF`. Click-detection comes from
+   `src/components/workout/muscle-mesh-mapping.ts`, which maps each of the
+   15 muscle groups to anatomical Latin name patterns (`pectoralis_major`,
+   `biceps_brachii`, `gluteus_maximus`, etc.). See
+   [`public/models/README.md`](public/models/README.md) for sources
+   (Sketchfab CC-licensed downloads, Z-Anatomy CC0, NIH 3D).
+2. **Parametric reference figure** (fallback). When no GLB is present,
+   `src/components/workout/mannequin-geometry.ts` generates a neutral
+   athletic figure from ellipsoids and capsules. Tune the
+   `STANDARD_PROPORTIONS` constant for a different build. Hit-detection
+   uses transparent overlay meshes inflated slightly past the body surface.
+
+The scene component (`mannequin-scene.tsx`) HEADs the GLB once on mount and
+picks the right path with no UI flicker.
 
 The 15 muscle groups (defined in `src/lib/muscles.ts`) are the primary key
 joining the mannequin to the exercise database. Adding a new muscle means
