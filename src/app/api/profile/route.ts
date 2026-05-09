@@ -12,7 +12,6 @@ export async function GET() {
   return NextResponse.json({
     profile: profile
       ? {
-          gender: profile.gender,
           units: profile.units,
           heightCm: profile.heightCm,
           weightKg: profile.weightKg,
@@ -51,14 +50,12 @@ export async function PUT(req: Request) {
     where: { userId: session.user.id },
     create: {
       userId: session.user.id,
-      gender: profileData.gender ?? "male",
       units: profileData.units ?? "metric",
       heightCm: profileData.heightCm,
       weightKg: profileData.weightKg,
       restrictions: JSON.stringify(profileData.restrictions ?? []),
     },
     update: {
-      ...(profileData.gender && { gender: profileData.gender }),
       ...(profileData.units && { units: profileData.units }),
       ...(profileData.heightCm !== undefined && { heightCm: profileData.heightCm }),
       ...(profileData.weightKg !== undefined && { weightKg: profileData.weightKg }),

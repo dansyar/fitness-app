@@ -4,7 +4,7 @@ A full-stack web app combining an interactive 3D anatomy-based exercise selector
 
 - **Workout tab**: a rotatable 3D mannequin with 15 clickable muscle groups. Pick a muscle, get exercises ranked by an evidence-informed score (EMG + hypertrophy meta-analysis + replication + practical efficacy), with citations available behind every score.
 - **Diet tab**: log meals from a photo. Vision model proposes items, grams, and macros with per-item confidence levels — you confirm or edit before anything saves. Macro rings show progress against goals. A meal-plan generator builds compliant plans against your targets and restrictions.
-- **Settings**: gender (controls mannequin), units, height/weight, dietary restrictions, macro targets.
+- **Settings**: units, height/weight, dietary restrictions, macro targets.
 - **History**: 30-day session count, total tonnage, weekly working sets per muscle, daily intake.
 
 ## Tech stack
@@ -111,8 +111,9 @@ prisma/
 
 ## The mannequin
 
-Two body types (male / female) are generated parametrically from primitive
-shapes (boxes, capsules, spheres) — see `src/components/workout/mannequin-geometry.ts`.
+A single neutral, anatomically-referenced figure is generated parametrically
+from ellipsoids and capsules — see `src/components/workout/mannequin-geometry.ts`.
+Tune the `STANDARD_PROPORTIONS` constant if you want a different build.
 This was a deliberate trade-off:
 
 - **Pro**: hit-detection for muscle groups is trivial. Each muscle group is

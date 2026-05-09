@@ -14,10 +14,9 @@ import {
 } from "react";
 import type { Group } from "three";
 import {
-  PROPORTIONS,
+  STANDARD_PROPORTIONS,
   buildBody,
   buildMuscleOverlays,
-  type Gender,
   type BodyPart,
   type MuscleOverlay,
 } from "./mannequin-geometry";
@@ -30,14 +29,9 @@ const HOVER_COLOR = "#a14a2a";
 const SELECTED_COLOR = "#a14a2a";
 const CAMERA_TARGET_Y = 0.12;
 
-interface MannequinSceneProps {
-  gender: Gender;
-}
-
-export function MannequinScene({ gender }: MannequinSceneProps) {
-  const proportions = PROPORTIONS[gender];
-  const body = useMemo(() => buildBody(proportions), [proportions]);
-  const overlays = useMemo(() => buildMuscleOverlays(proportions), [proportions]);
+export function MannequinScene() {
+  const body = useMemo(() => buildBody(STANDARD_PROPORTIONS), []);
+  const overlays = useMemo(() => buildMuscleOverlays(STANDARD_PROPORTIONS), []);
   const cameraView = useWorkoutStore((s) => s.cameraView);
   const [interacting, setInteracting] = useState(false);
   const controlsRef = useRef<ElementRef<typeof OrbitControls>>(null);

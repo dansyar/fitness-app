@@ -3,8 +3,6 @@
 
 import type { MuscleGroupId } from "@/lib/muscles";
 
-export type Gender = "male" | "female";
-
 type Vec3 = [number, number, number];
 
 export interface ProportionSet {
@@ -21,33 +19,21 @@ export interface ProportionSet {
   hipDepth: number;
 }
 
-export const PROPORTIONS: Record<Gender, ProportionSet> = {
-  male: {
-    shoulderWidth: 0.66,
-    waistWidth: 0.36,
-    hipWidth: 0.42,
-    torsoLength: 0.68,
-    armLength: 0.78,
-    legLength: 0.96,
-    headSize: 0.12,
-    limbThickness: 0.078,
-    muscleBulk: 0.115,
-    chestDepth: 0.28,
-    hipDepth: 0.24,
-  },
-  female: {
-    shoulderWidth: 0.52,
-    waistWidth: 0.32,
-    hipWidth: 0.5,
-    torsoLength: 0.66,
-    armLength: 0.72,
-    legLength: 0.94,
-    headSize: 0.112,
-    limbThickness: 0.064,
-    muscleBulk: 0.085,
-    chestDepth: 0.24,
-    hipDepth: 0.27,
-  },
+// A single neutral, athletic reference figure. Proportions sit between the
+// previous male/female sets so the mannequin reads as anatomical reference
+// rather than a specific body type.
+export const STANDARD_PROPORTIONS: ProportionSet = {
+  shoulderWidth: 0.6,
+  waistWidth: 0.34,
+  hipWidth: 0.44,
+  torsoLength: 0.67,
+  armLength: 0.76,
+  legLength: 0.95,
+  headSize: 0.118,
+  limbThickness: 0.072,
+  muscleBulk: 0.1,
+  chestDepth: 0.26,
+  hipDepth: 0.255,
 };
 
 export type Shape =

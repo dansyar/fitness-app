@@ -1,12 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useWorkoutStore } from "@/store/workout-store";
 import { RotateCcw } from "lucide-react";
-import type { Gender } from "./mannequin-geometry";
 
 const MannequinScene = dynamic(
   () => import("./mannequin-scene").then((m) => m.MannequinScene),
@@ -20,33 +18,13 @@ const MannequinScene = dynamic(
   },
 );
 
-export function MannequinLoader({ initialGender }: { initialGender: Gender }) {
-  const [gender, setGender] = useState<Gender>(initialGender);
+export function MannequinLoader() {
   const cameraView = useWorkoutStore((s) => s.cameraView);
   const setCameraView = useWorkoutStore((s) => s.setCameraView);
 
   return (
     <div className="relative w-full h-full bg-gradient-to-b from-secondary/40 to-background rounded-md border overflow-hidden">
-      <MannequinScene gender={gender} />
-
-      <div className="absolute top-3 left-3 flex gap-2">
-        <Button
-          size="sm"
-          variant={gender === "male" ? "default" : "outline"}
-          onClick={() => setGender("male")}
-          className="h-8 px-3"
-        >
-          Male
-        </Button>
-        <Button
-          size="sm"
-          variant={gender === "female" ? "default" : "outline"}
-          onClick={() => setGender("female")}
-          className="h-8 px-3"
-        >
-          Female
-        </Button>
-      </div>
+      <MannequinScene />
 
       <Button
         variant="outline"

@@ -93,7 +93,6 @@ export const SaveSessionRequestSchema = z.object({
 });
 
 export const UpdateProfileRequestSchema = z.object({
-  gender: z.enum(["male", "female"]).optional(),
   units: z.enum(["metric", "imperial"]).optional(),
   heightCm: z.number().positive().optional(),
   weightKg: z.number().positive().optional(),

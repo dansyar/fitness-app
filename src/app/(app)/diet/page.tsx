@@ -11,7 +11,7 @@ import { LogMealDialog } from "@/components/diet/log-meal-dialog";
 import { isoDay } from "@/lib/utils";
 
 interface ProfileResponse {
-  profile: { gender: string; restrictions: string[] } | null;
+  profile: { restrictions: string[] } | null;
   macroGoal: {
     calories: number;
     proteinG: number;

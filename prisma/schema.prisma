@@ -68,7 +68,6 @@ model VerificationToken {
 model Profile {
   id        String  @id @default(cuid())
   userId    String  @unique
-  gender    String  @default("male") // male | female
   units     String  @default("metric") // metric | imperial
   heightCm  Float?
   weightKg  Float?

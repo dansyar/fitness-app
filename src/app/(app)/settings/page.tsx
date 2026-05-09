@@ -11,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const RESTRICTIONS = ["vegetarian", "vegan", "halal", "kosher", "gluten-free", "dairy-free", "nut-free"];
 
-type Gender = "male" | "female";
 type Units = "metric" | "imperial";
 type Goal = "maintain" | "lean_bulk" | "fat_loss" | "aggressive_cut";
 
@@ -69,12 +68,10 @@ function fromStoredWeightKg(value: number, units: Units) {
 }
 
 function calculateMacroGoal({
-  gender,
   goal,
   heightCm,
   weightKg,
 }: {
-  gender: Gender;
   goal: Goal;
   heightCm: number | null;
   weightKg: number | null;
@@ -82,8 +79,11 @@ function calculateMacroGoal({
   if (!heightCm || !weightKg) return null;
 
   const config = GOAL_CONFIG[goal];
-  const genderAdjustment = gender === "male" ? 5 : -161;
-  const bmr = 10 * weightKg + 6.25 * heightCm - 5 * DEFAULT_AGE + genderAdjustment;
+  // Mifflin-St Jeor with a sex-neutral constant — midpoint of the male (+5)
+  // and female (-161) adjustments. Treat the result as an estimate and tune
+  // the macro inputs directly if you want a more accurate target.
+  const NEUTRAL_ADJUSTMENT = -78;
+  const bmr = 10 * weightKg + 6.25 * heightCm - 5 * DEFAULT_AGE + NEUTRAL_ADJUSTMENT;
   const calories = Math.max(
     1200,
     roundToNearest(bmr * ACTIVITY_MULTIPLIER + config.calorieOffset, 25),
@@ -103,7 +103,6 @@ function calculateMacroGoal({
 
 interface ProfileResponse {
   profile: {
-    gender: string;
     units: string;
     heightCm: number | null;
     weightKg: number | null;
@@ -129,7 +128,6 @@ export default function SettingsPage() {
     },
   });
 
-  const [gender, setGender] = useState<Gender>("male");
   const [units, setUnits] = useState<Units>("metric");
   const [heightCm, setHeightCm] = useState<string>("");
   const [weightKg, setWeightKg] = useState<string>("");
@@ -144,7 +142,6 @@ export default function SettingsPage() {
     if (!data) return;
     if (data.profile) {
       const profileUnits = (data.profile.units as Units) ?? "metric";
-      setGender((data.profile.gender as Gender) ?? "male");
       setUnits(profileUnits);
       setHeightCm(
         data.profile.heightCm
@@ -170,12 +167,11 @@ export default function SettingsPage() {
   const calculatedMacroGoal = useMemo(
     () =>
       calculateMacroGoal({
-        gender,
         goal,
         heightCm: toStoredHeightCm(heightCm, units),
         weightKg: toStoredWeightKg(weightKg, units),
       }),
-    [gender, goal, heightCm, units, weightKg],
+    [goal, heightCm, units, weightKg],
   );
 
   function handleUnitsChange(nextUnits: Units) {
@@ -203,7 +199,6 @@ export default function SettingsPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           profile: {
-            gender,
             units,
             heightCm: toStoredHeightCm(heightCm, units) ?? undefined,
             weightKg: toStoredWeightKg(weightKg, units) ?? undefined,
@@ -231,21 +226,9 @@ export default function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Profile</CardTitle>
-              <CardDescription>Used by the mannequin and AI prompts.</CardDescription>
+              <CardDescription>Used by AI prompts and macro calculations.</CardDescription>
             </CardHeader>
             <CardContent className="grid sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>Gender</Label>
-                <Select value={gender} onValueChange={(v) => setGender(v as Gender)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="male">Male</SelectItem>
-                    <SelectItem value="female">Female</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="space-y-1.5">
                 <Label>Units</Label>
                 <Select value={units} onValueChange={(v) => handleUnitsChange(v as Units)}>
