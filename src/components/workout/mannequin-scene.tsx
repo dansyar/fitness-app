@@ -15,29 +15,40 @@ import {
 import type { Group } from "three";
 import {
   PROPORTIONS,
+  buildAnatomyDetails,
   buildBody,
   buildMuscleOverlays,
   type Gender,
+  type AnatomyDetail,
+  type AnatomyTone,
   type BodyPart,
   type MuscleOverlay,
 } from "./mannequin-geometry";
 import type { MuscleGroupId } from "@/lib/muscles";
 import { useWorkoutStore } from "@/store/workout-store";
 
-const SKIN_COLOR = "#d8b996";
-const MUSCLE_COLOR = "#c99b78";
-const HOVER_COLOR = "#a14a2a";
-const SELECTED_COLOR = "#a14a2a";
+const BASE_TISSUE_COLOR = "#b95b4d";
+const MUSCLE_COLOR = "#d9654d";
+const HOVER_COLOR = "#ff7b55";
+const SELECTED_COLOR = "#e9432f";
+const ANATOMY_COLORS: Record<AnatomyTone, string> = {
+  tendon: "#f4e8db",
+  fiber: "#7c261f",
+  deep: "#5f1715",
+  fascia: "#f1dfd1",
+};
 const CAMERA_TARGET_Y = 0.12;
 
 interface MannequinSceneProps {
   gender: Gender;
+  viewCommand: number;
 }
 
-export function MannequinScene({ gender }: MannequinSceneProps) {
+export function MannequinScene({ gender, viewCommand }: MannequinSceneProps) {
   const proportions = PROPORTIONS[gender];
   const body = useMemo(() => buildBody(proportions), [proportions]);
   const overlays = useMemo(() => buildMuscleOverlays(proportions), [proportions]);
+  const anatomyDetails = useMemo(() => buildAnatomyDetails(proportions), [proportions]);
   const cameraView = useWorkoutStore((s) => s.cameraView);
   const [interacting, setInteracting] = useState(false);
   const controlsRef = useRef<ElementRef<typeof OrbitControls>>(null);
@@ -52,14 +63,20 @@ export function MannequinScene({ gender }: MannequinSceneProps) {
       <Suspense fallback={null}>
         <SceneLights />
         <ResponsiveCamera controlsRef={controlsRef} interacting={interacting} />
-        <CameraRig view={cameraView} interacting={interacting} controlsRef={controlsRef} />
+        <CameraRig
+          view={cameraView}
+          viewCommand={viewCommand}
+          interacting={interacting}
+          controlsRef={controlsRef}
+        />
 
         <group position={[0, -0.88, 0]}>
-          <LiveModel>
+          <LiveModel interacting={interacting}>
             <BodyMesh body={body} />
             {overlays.map((overlay) => (
               <MuscleGroup key={overlay.muscle} overlay={overlay} interacting={interacting} />
             ))}
+            <AnatomyDetails details={anatomyDetails} />
           </LiveModel>
           <ContactShadows
             position={[0, 0.001, 0]}
@@ -99,26 +116,28 @@ export function MannequinScene({ gender }: MannequinSceneProps) {
 function SceneLights() {
   return (
     <>
-      <ambientLight intensity={0.45} />
+      <ambientLight intensity={0.52} />
       <directionalLight
         position={[2.6, 4.5, 3.5]}
-        intensity={1.1}
+        intensity={1.2}
         castShadow
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
       />
-      <directionalLight position={[-3.8, 2.5, 2]} intensity={0.35} color="#f3dcc1" />
-      <directionalLight position={[0, 3.2, -4.5]} intensity={0.45} color="#e2cfb3" />
+      <directionalLight position={[-3.8, 2.5, 2]} intensity={0.42} color="#f6dfcf" />
+      <directionalLight position={[0, 3.2, -4.5]} intensity={0.58} color="#f0ddd0" />
     </>
   );
 }
 
 function CameraRig({
   view,
+  viewCommand,
   interacting,
   controlsRef,
 }: {
   view: "front" | "back";
+  viewCommand: number;
   interacting: boolean;
   controlsRef: RefObject<ElementRef<typeof OrbitControls> | null>;
 }) {
@@ -128,7 +147,7 @@ function CameraRig({
   useEffect(() => {
     targetAzimuth.current = view === "front" ? 0 : Math.PI;
     isTransitioning.current = true;
-  }, [view]);
+  }, [view, viewCommand]);
 
   useFrame((state) => {
     if (interacting || !isTransitioning.current) return;
@@ -179,12 +198,12 @@ function ResponsiveCamera({
   return null;
 }
 
-function LiveModel({ children }: PropsWithChildren) {
+function LiveModel({ children, interacting }: PropsWithChildren<{ interacting: boolean }>) {
   const groupRef = useRef<Group>(null);
 
   useFrame((state) => {
     if (!groupRef.current) return;
-    const breath = Math.sin(state.clock.elapsedTime * 1.6) * 0.004;
+    const breath = interacting ? 0 : Math.sin(state.clock.elapsedTime * 1.6) * 0.0016;
     groupRef.current.scale.set(1 + breath * 0.45, 1 + breath, 1 + breath * 0.7);
     groupRef.current.position.y = breath * 0.8;
   });
@@ -196,7 +215,22 @@ function BodyMesh({ body }: { body: BodyPart[] }) {
   return (
     <group>
       {body.map((part) => (
-        <PartMesh key={part.id} part={part} color={SKIN_COLOR} />
+        <PartMesh key={part.id} part={part} color={BASE_TISSUE_COLOR} />
+      ))}
+    </group>
+  );
+}
+
+function AnatomyDetails({ details }: { details: AnatomyDetail[] }) {
+  return (
+    <group>
+      {details.map((part) => (
+        <PartMesh
+          key={part.id}
+          part={part}
+          color={ANATOMY_COLORS[part.tone]}
+          opacity={part.opacity ?? 0.86}
+        />
       ))}
     </group>
   );
@@ -304,9 +338,9 @@ function MuscleGroup({ overlay, interacting }: { overlay: MuscleOverlay; interac
 
   const isSelected = selected === overlay.muscle;
   const isHovered = hovered === overlay.muscle;
-  const intensity = isSelected ? 0.55 : isHovered ? 0.28 : 0;
+  const intensity = isSelected ? 0.62 : isHovered ? 0.34 : 0;
   const color = isSelected || isHovered ? SELECTED_COLOR : MUSCLE_COLOR;
-  const opacity = isSelected || isHovered ? 0.96 : 0.74;
+  const opacity = isSelected || isHovered ? 1 : 0.9;
 
   return (
     <group>
