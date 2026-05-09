@@ -1,53 +1,66 @@
-// Parametric definitions for the mannequin body and overlay muscle groups.
-// Each muscle group is rendered as one or more boxes/capsules slightly inflated
-// past the surface of the base body, so raycast hit-detection lands on them
-// before the body. Coordinates are in meters with origin at the model's pelvis.
+// Parametric definitions for the interactive physique model and clickable
+// muscle groups. Coordinates are in meters with the origin near the feet.
 
 import type { MuscleGroupId } from "@/lib/muscles";
 
 export type Gender = "male" | "female";
 
+type Vec3 = [number, number, number];
+
 export interface ProportionSet {
   shoulderWidth: number;
+  waistWidth: number;
   hipWidth: number;
   torsoLength: number;
   armLength: number;
   legLength: number;
   headSize: number;
   limbThickness: number;
+  muscleBulk: number;
+  chestDepth: number;
+  hipDepth: number;
 }
 
 export const PROPORTIONS: Record<Gender, ProportionSet> = {
   male: {
-    shoulderWidth: 0.55,
+    shoulderWidth: 0.66,
+    waistWidth: 0.36,
     hipWidth: 0.42,
-    torsoLength: 0.62,
-    armLength: 0.74,
-    legLength: 0.92,
-    headSize: 0.13,
-    limbThickness: 0.075,
+    torsoLength: 0.68,
+    armLength: 0.78,
+    legLength: 0.96,
+    headSize: 0.12,
+    limbThickness: 0.078,
+    muscleBulk: 0.115,
+    chestDepth: 0.28,
+    hipDepth: 0.24,
   },
   female: {
-    shoulderWidth: 0.46,
-    hipWidth: 0.46,
-    torsoLength: 0.6,
-    armLength: 0.7,
-    legLength: 0.9,
-    headSize: 0.122,
-    limbThickness: 0.062,
+    shoulderWidth: 0.52,
+    waistWidth: 0.32,
+    hipWidth: 0.5,
+    torsoLength: 0.66,
+    armLength: 0.72,
+    legLength: 0.94,
+    headSize: 0.112,
+    limbThickness: 0.064,
+    muscleBulk: 0.085,
+    chestDepth: 0.24,
+    hipDepth: 0.27,
   },
 };
 
 export type Shape =
-  | { kind: "box"; size: [number, number, number] }
-  | { kind: "capsule"; radius: number; length: number; capSegments?: number }
+  | { kind: "box"; size: Vec3 }
+  | { kind: "capsule"; radius: number; length: number }
+  | { kind: "ellipsoid"; radius: Vec3 }
   | { kind: "sphere"; radius: number };
 
 export interface BodyPart {
-  /** Unique node id (for logical reference; not the muscle group id). */
   id: string;
-  position: [number, number, number];
-  rotation?: [number, number, number];
+  position: Vec3;
+  rotation?: Vec3;
+  scale?: Vec3;
   shape: Shape;
 }
 
@@ -57,326 +70,191 @@ export interface MuscleOverlay {
 }
 
 export function buildBody(p: ProportionSet): BodyPart[] {
-  const torsoY = p.legLength + p.torsoLength / 2;
-  const headY = p.legLength + p.torsoLength + p.headSize + 0.03;
-  const shoulderY = p.legLength + p.torsoLength - 0.02;
+  const torsoBase = p.legLength + 0.02;
+  const torsoTop = p.legLength + p.torsoLength;
+  const chestY = torsoTop - 0.2;
+  const abdomenY = torsoBase + 0.25;
+  const shoulderY = torsoTop - 0.06;
+  const headY = torsoTop + p.headSize + 0.11;
+  const armX = p.shoulderWidth / 2 + p.limbThickness * 0.55;
+  const thighX = p.hipWidth / 2 - 0.08;
+
   return [
-    // Head
-    { id: "head", position: [0, headY, 0], shape: { kind: "sphere", radius: p.headSize } },
-    // Neck
-    {
-      id: "neck",
-      position: [0, p.legLength + p.torsoLength + 0.02, 0],
-      shape: { kind: "capsule", radius: 0.05, length: 0.06 },
-    },
-    // Torso (single rounded box)
-    {
-      id: "torso",
-      position: [0, torsoY, 0],
-      shape: { kind: "box", size: [p.shoulderWidth * 0.8, p.torsoLength, 0.22] },
-    },
-    // Pelvis
-    {
-      id: "pelvis",
-      position: [0, p.legLength - 0.02, 0],
-      shape: { kind: "box", size: [p.hipWidth, 0.16, 0.22] },
-    },
-    // Upper arms
-    armPart("upperArmL", -p.shoulderWidth / 2 - 0.02, shoulderY - 0.18, p.limbThickness, 0.3),
-    armPart("upperArmR", p.shoulderWidth / 2 + 0.02, shoulderY - 0.18, p.limbThickness, 0.3),
-    // Lower arms
-    armPart("forearmL", -p.shoulderWidth / 2 - 0.02, shoulderY - 0.55, p.limbThickness * 0.85, 0.3),
-    armPart("forearmR", p.shoulderWidth / 2 + 0.02, shoulderY - 0.55, p.limbThickness * 0.85, 0.3),
-    // Hands
-    {
-      id: "handL",
-      position: [-p.shoulderWidth / 2 - 0.02, shoulderY - 0.78, 0],
-      shape: { kind: "sphere", radius: 0.06 },
-    },
-    {
-      id: "handR",
-      position: [p.shoulderWidth / 2 + 0.02, shoulderY - 0.78, 0],
-      shape: { kind: "sphere", radius: 0.06 },
-    },
-    // Thighs
-    {
-      id: "thighL",
-      position: [-p.hipWidth / 2 + 0.05, p.legLength * 0.72, 0],
-      shape: { kind: "capsule", radius: p.limbThickness * 1.5, length: 0.42 },
-    },
-    {
-      id: "thighR",
-      position: [p.hipWidth / 2 - 0.05, p.legLength * 0.72, 0],
-      shape: { kind: "capsule", radius: p.limbThickness * 1.5, length: 0.42 },
-    },
-    // Shins
-    {
-      id: "shinL",
-      position: [-p.hipWidth / 2 + 0.05, p.legLength * 0.28, 0.01],
-      shape: { kind: "capsule", radius: p.limbThickness * 1.1, length: 0.42 },
-    },
-    {
-      id: "shinR",
-      position: [p.hipWidth / 2 - 0.05, p.legLength * 0.28, 0.01],
-      shape: { kind: "capsule", radius: p.limbThickness * 1.1, length: 0.42 },
-    },
-    // Feet
-    {
-      id: "footL",
-      position: [-p.hipWidth / 2 + 0.05, 0.04, 0.07],
-      shape: { kind: "box", size: [0.09, 0.06, 0.22] },
-    },
-    {
-      id: "footR",
-      position: [p.hipWidth / 2 - 0.05, 0.04, 0.07],
-      shape: { kind: "box", size: [0.09, 0.06, 0.22] },
-    },
+    ellipsoid("head", [0, headY, 0.015], [p.headSize * 0.82, p.headSize * 1.08, p.headSize * 0.76]),
+    ellipsoid("jaw", [0, headY - p.headSize * 0.72, 0.035], [p.headSize * 0.62, p.headSize * 0.33, p.headSize * 0.58]),
+    capsule("neck", [0, torsoTop + 0.03, 0], 0.045, 0.1),
+
+    ellipsoid("ribcage", [0, chestY, 0], [p.shoulderWidth * 0.43, 0.31, p.chestDepth * 0.55]),
+    ellipsoid("waist", [0, abdomenY, 0], [p.waistWidth * 0.52, 0.28, p.chestDepth * 0.45]),
+    ellipsoid("pelvis", [0, p.legLength - 0.03, -0.005], [p.hipWidth * 0.56, 0.16, p.hipDepth * 0.58]),
+
+    ellipsoid("shoulderCapL", [-p.shoulderWidth / 2, shoulderY, 0], [p.muscleBulk * 0.9, p.muscleBulk * 0.82, p.muscleBulk * 0.78]),
+    ellipsoid("shoulderCapR", [p.shoulderWidth / 2, shoulderY, 0], [p.muscleBulk * 0.9, p.muscleBulk * 0.82, p.muscleBulk * 0.78]),
+
+    capsule("upperArmL", [-armX, shoulderY - p.armLength * 0.24, 0.005], p.limbThickness * 1.24, p.armLength * 0.34, [0, 0, 0.08], [0.88, 1, 1.12]),
+    capsule("upperArmR", [armX, shoulderY - p.armLength * 0.24, 0.005], p.limbThickness * 1.24, p.armLength * 0.34, [0, 0, -0.08], [0.88, 1, 1.12]),
+    capsule("forearmL", [-armX + 0.018, shoulderY - p.armLength * 0.66, 0.018], p.limbThickness * 0.92, p.armLength * 0.34, [0, 0, 0.04], [0.78, 1, 1.08]),
+    capsule("forearmR", [armX - 0.018, shoulderY - p.armLength * 0.66, 0.018], p.limbThickness * 0.92, p.armLength * 0.34, [0, 0, -0.04], [0.78, 1, 1.08]),
+    ellipsoid("handL", [-armX + 0.035, shoulderY - p.armLength * 0.88, 0.035], [0.04, 0.08, 0.035], [0, 0, 0.1]),
+    ellipsoid("handR", [armX - 0.035, shoulderY - p.armLength * 0.88, 0.035], [0.04, 0.08, 0.035], [0, 0, -0.1]),
+
+    capsule("thighL", [-thighX, p.legLength * 0.68, 0], p.limbThickness * 1.65, p.legLength * 0.38, undefined, [0.86, 1, 1.08]),
+    capsule("thighR", [thighX, p.legLength * 0.68, 0], p.limbThickness * 1.65, p.legLength * 0.38, undefined, [0.86, 1, 1.08]),
+    capsule("shinL", [-thighX, p.legLength * 0.27, 0.015], p.limbThickness * 1.08, p.legLength * 0.36, undefined, [0.76, 1, 1.05]),
+    capsule("shinR", [thighX, p.legLength * 0.27, 0.015], p.limbThickness * 1.08, p.legLength * 0.36, undefined, [0.76, 1, 1.05]),
+    ellipsoid("footL", [-thighX, 0.045, 0.085], [0.055, 0.035, 0.145]),
+    ellipsoid("footR", [thighX, 0.045, 0.085], [0.055, 0.035, 0.145]),
   ];
 }
 
-function armPart(id: string, x: number, y: number, r: number, len: number): BodyPart {
-  return {
-    id,
-    position: [x, y, 0],
-    shape: { kind: "capsule", radius: r, length: len },
-  };
-}
-
 export function buildMuscleOverlays(p: ProportionSet): MuscleOverlay[] {
-  const torsoY = p.legLength + p.torsoLength / 2;
+  const torsoBase = p.legLength + 0.02;
   const torsoTop = p.legLength + p.torsoLength;
-  const torsoFront = 0.115;
-  const torsoBack = -0.115;
-  const armOffsetX = p.shoulderWidth / 2 + 0.02;
-  const shoulderY = torsoTop - 0.04;
+  const chestY = torsoTop - 0.2;
+  const abdomenY = torsoBase + 0.27;
+  const shoulderY = torsoTop - 0.06;
+  const armX = p.shoulderWidth / 2 + p.limbThickness * 0.55;
+  const thighX = p.hipWidth / 2 - 0.08;
+  const frontZ = p.chestDepth * 0.52;
+  const backZ = -p.chestDepth * 0.52;
+  const legFrontZ = p.limbThickness * 1.08;
+  const legBackZ = -p.limbThickness * 1.08;
 
   return [
     {
       muscle: "chest",
       parts: [
-        {
-          id: "chest_l",
-          position: [-p.shoulderWidth * 0.18, torsoTop - 0.16, torsoFront + 0.005],
-          shape: { kind: "box", size: [p.shoulderWidth * 0.34, 0.18, 0.04] },
-        },
-        {
-          id: "chest_r",
-          position: [p.shoulderWidth * 0.18, torsoTop - 0.16, torsoFront + 0.005],
-          shape: { kind: "box", size: [p.shoulderWidth * 0.34, 0.18, 0.04] },
-        },
+        ellipsoid("pecL", [-p.shoulderWidth * 0.16, chestY + 0.035, frontZ + 0.012], [p.shoulderWidth * 0.19, 0.115, 0.042], [0, 0.04, -0.08]),
+        ellipsoid("pecR", [p.shoulderWidth * 0.16, chestY + 0.035, frontZ + 0.012], [p.shoulderWidth * 0.19, 0.115, 0.042], [0, -0.04, 0.08]),
+        ellipsoid("lowerPecL", [-p.shoulderWidth * 0.13, chestY - 0.08, frontZ + 0.01], [p.shoulderWidth * 0.15, 0.06, 0.035], [0, 0, -0.18]),
+        ellipsoid("lowerPecR", [p.shoulderWidth * 0.13, chestY - 0.08, frontZ + 0.01], [p.shoulderWidth * 0.15, 0.06, 0.035], [0, 0, 0.18]),
       ],
     },
     {
       muscle: "abs",
       parts: [
-        {
-          id: "abs",
-          position: [0, torsoY - 0.12, torsoFront + 0.005],
-          shape: { kind: "box", size: [0.18, 0.32, 0.035] },
-        },
+        ...[-1, 0, 1].flatMap((row) => [
+          ellipsoid(`absL${row}`, [-0.055, abdomenY + row * 0.085, frontZ + 0.014], [0.045, 0.042, 0.026]),
+          ellipsoid(`absR${row}`, [0.055, abdomenY + row * 0.085, frontZ + 0.014], [0.045, 0.042, 0.026]),
+        ]),
       ],
     },
     {
       muscle: "obliques",
       parts: [
-        {
-          id: "oblique_l",
-          position: [-p.shoulderWidth * 0.34, torsoY - 0.13, torsoFront - 0.01],
-          rotation: [0, 0, 0.18],
-          shape: { kind: "box", size: [0.07, 0.28, 0.05] },
-        },
-        {
-          id: "oblique_r",
-          position: [p.shoulderWidth * 0.34, torsoY - 0.13, torsoFront - 0.01],
-          rotation: [0, 0, -0.18],
-          shape: { kind: "box", size: [0.07, 0.28, 0.05] },
-        },
+        ellipsoid("obliqueL", [-p.waistWidth * 0.46, abdomenY, frontZ * 0.62], [0.045, 0.18, 0.035], [0, 0, 0.22]),
+        ellipsoid("obliqueR", [p.waistWidth * 0.46, abdomenY, frontZ * 0.62], [0.045, 0.18, 0.035], [0, 0, -0.22]),
       ],
     },
     {
       muscle: "upper_back",
       parts: [
-        {
-          id: "upper_back",
-          position: [0, torsoTop - 0.18, torsoBack - 0.005],
-          shape: { kind: "box", size: [p.shoulderWidth * 0.6, 0.2, 0.04] },
-        },
+        ellipsoid("midBack", [0, chestY + 0.02, backZ - 0.012], [p.shoulderWidth * 0.28, 0.17, 0.04]),
+        ellipsoid("upperBackL", [-p.shoulderWidth * 0.18, chestY + 0.085, backZ - 0.012], [p.shoulderWidth * 0.16, 0.11, 0.035], [0, 0.08, -0.12]),
+        ellipsoid("upperBackR", [p.shoulderWidth * 0.18, chestY + 0.085, backZ - 0.012], [p.shoulderWidth * 0.16, 0.11, 0.035], [0, -0.08, 0.12]),
       ],
     },
     {
       muscle: "lats",
       parts: [
-        {
-          id: "lat_l",
-          position: [-p.shoulderWidth * 0.32, torsoY - 0.08, torsoBack - 0.005],
-          shape: { kind: "box", size: [0.1, 0.28, 0.05] },
-        },
-        {
-          id: "lat_r",
-          position: [p.shoulderWidth * 0.32, torsoY - 0.08, torsoBack - 0.005],
-          shape: { kind: "box", size: [0.1, 0.28, 0.05] },
-        },
+        ellipsoid("latL", [-p.shoulderWidth * 0.3, chestY - 0.08, backZ - 0.01], [0.07, 0.22, 0.04], [0, 0, -0.18]),
+        ellipsoid("latR", [p.shoulderWidth * 0.3, chestY - 0.08, backZ - 0.01], [0.07, 0.22, 0.04], [0, 0, 0.18]),
       ],
     },
     {
       muscle: "traps",
       parts: [
-        {
-          id: "traps",
-          position: [0, torsoTop + 0.02, torsoBack],
-          shape: { kind: "box", size: [p.shoulderWidth * 0.55, 0.12, 0.06] },
-        },
+        ellipsoid("trapCenter", [0, shoulderY + 0.045, backZ - 0.005], [0.09, 0.08, 0.045]),
+        ellipsoid("trapL", [-p.shoulderWidth * 0.16, shoulderY + 0.005, backZ - 0.005], [0.12, 0.055, 0.036], [0, 0, -0.35]),
+        ellipsoid("trapR", [p.shoulderWidth * 0.16, shoulderY + 0.005, backZ - 0.005], [0.12, 0.055, 0.036], [0, 0, 0.35]),
       ],
     },
     {
       muscle: "front_delts",
       parts: [
-        {
-          id: "front_delt_l",
-          position: [-p.shoulderWidth / 2 - 0.01, shoulderY - 0.04, 0.06],
-          shape: { kind: "sphere", radius: 0.075 },
-        },
-        {
-          id: "front_delt_r",
-          position: [p.shoulderWidth / 2 + 0.01, shoulderY - 0.04, 0.06],
-          shape: { kind: "sphere", radius: 0.075 },
-        },
+        ellipsoid("frontDeltL", [-p.shoulderWidth / 2 + 0.01, shoulderY - 0.035, 0.075], [0.07, 0.075, 0.052], [0.15, 0, -0.08]),
+        ellipsoid("frontDeltR", [p.shoulderWidth / 2 - 0.01, shoulderY - 0.035, 0.075], [0.07, 0.075, 0.052], [0.15, 0, 0.08]),
       ],
     },
     {
       muscle: "side_delts",
       parts: [
-        {
-          id: "side_delt_l",
-          position: [-p.shoulderWidth / 2 - 0.06, shoulderY - 0.04, 0],
-          shape: { kind: "sphere", radius: 0.075 },
-        },
-        {
-          id: "side_delt_r",
-          position: [p.shoulderWidth / 2 + 0.06, shoulderY - 0.04, 0],
-          shape: { kind: "sphere", radius: 0.075 },
-        },
+        ellipsoid("sideDeltL", [-p.shoulderWidth / 2 - 0.055, shoulderY - 0.045, 0], [0.072, 0.08, 0.062]),
+        ellipsoid("sideDeltR", [p.shoulderWidth / 2 + 0.055, shoulderY - 0.045, 0], [0.072, 0.08, 0.062]),
       ],
     },
     {
       muscle: "rear_delts",
       parts: [
-        {
-          id: "rear_delt_l",
-          position: [-p.shoulderWidth / 2 - 0.01, shoulderY - 0.04, -0.06],
-          shape: { kind: "sphere", radius: 0.075 },
-        },
-        {
-          id: "rear_delt_r",
-          position: [p.shoulderWidth / 2 + 0.01, shoulderY - 0.04, -0.06],
-          shape: { kind: "sphere", radius: 0.075 },
-        },
+        ellipsoid("rearDeltL", [-p.shoulderWidth / 2 + 0.01, shoulderY - 0.045, -0.075], [0.068, 0.072, 0.048], [-0.15, 0, -0.08]),
+        ellipsoid("rearDeltR", [p.shoulderWidth / 2 - 0.01, shoulderY - 0.045, -0.075], [0.068, 0.072, 0.048], [-0.15, 0, 0.08]),
       ],
     },
     {
       muscle: "biceps",
       parts: [
-        {
-          id: "bicep_l",
-          position: [-armOffsetX, shoulderY - 0.22, 0.06],
-          shape: { kind: "capsule", radius: 0.05, length: 0.18 },
-        },
-        {
-          id: "bicep_r",
-          position: [armOffsetX, shoulderY - 0.22, 0.06],
-          shape: { kind: "capsule", radius: 0.05, length: 0.18 },
-        },
+        ellipsoid("bicepsL", [-armX, shoulderY - p.armLength * 0.25, 0.06], [0.052, 0.14, 0.04]),
+        ellipsoid("bicepsR", [armX, shoulderY - p.armLength * 0.25, 0.06], [0.052, 0.14, 0.04]),
       ],
     },
     {
       muscle: "triceps",
       parts: [
-        {
-          id: "tricep_l",
-          position: [-armOffsetX, shoulderY - 0.22, -0.06],
-          shape: { kind: "capsule", radius: 0.05, length: 0.2 },
-        },
-        {
-          id: "tricep_r",
-          position: [armOffsetX, shoulderY - 0.22, -0.06],
-          shape: { kind: "capsule", radius: 0.05, length: 0.2 },
-        },
+        ellipsoid("tricepsL", [-armX, shoulderY - p.armLength * 0.25, -0.058], [0.052, 0.15, 0.04]),
+        ellipsoid("tricepsR", [armX, shoulderY - p.armLength * 0.25, -0.058], [0.052, 0.15, 0.04]),
       ],
     },
     {
       muscle: "forearms",
       parts: [
-        {
-          id: "forearm_l",
-          position: [-armOffsetX, shoulderY - 0.55, 0.04],
-          shape: { kind: "capsule", radius: 0.045, length: 0.22 },
-        },
-        {
-          id: "forearm_r",
-          position: [armOffsetX, shoulderY - 0.55, 0.04],
-          shape: { kind: "capsule", radius: 0.045, length: 0.22 },
-        },
+        ellipsoid("forearmL", [-armX, shoulderY - p.armLength * 0.68, 0.03], [0.047, 0.15, 0.035]),
+        ellipsoid("forearmR", [armX, shoulderY - p.armLength * 0.68, 0.03], [0.047, 0.15, 0.035]),
       ],
     },
     {
       muscle: "quads",
       parts: [
-        {
-          id: "quad_l",
-          position: [-p.hipWidth / 2 + 0.05, p.legLength * 0.72, 0.07],
-          shape: { kind: "capsule", radius: 0.075, length: 0.34 },
-        },
-        {
-          id: "quad_r",
-          position: [p.hipWidth / 2 - 0.05, p.legLength * 0.72, 0.07],
-          shape: { kind: "capsule", radius: 0.075, length: 0.34 },
-        },
+        ellipsoid("quadOuterL", [-thighX - 0.035, p.legLength * 0.69, legFrontZ], [0.052, 0.22, 0.036], [0, 0, 0.08]),
+        ellipsoid("quadInnerL", [-thighX + 0.035, p.legLength * 0.65, legFrontZ + 0.004], [0.046, 0.2, 0.034], [0, 0, -0.12]),
+        ellipsoid("quadOuterR", [thighX + 0.035, p.legLength * 0.69, legFrontZ], [0.052, 0.22, 0.036], [0, 0, -0.08]),
+        ellipsoid("quadInnerR", [thighX - 0.035, p.legLength * 0.65, legFrontZ + 0.004], [0.046, 0.2, 0.034], [0, 0, 0.12]),
       ],
     },
     {
       muscle: "hamstrings",
       parts: [
-        {
-          id: "ham_l",
-          position: [-p.hipWidth / 2 + 0.05, p.legLength * 0.72, -0.07],
-          shape: { kind: "capsule", radius: 0.07, length: 0.34 },
-        },
-        {
-          id: "ham_r",
-          position: [p.hipWidth / 2 - 0.05, p.legLength * 0.72, -0.07],
-          shape: { kind: "capsule", radius: 0.07, length: 0.34 },
-        },
+        ellipsoid("hamL", [-thighX, p.legLength * 0.68, legBackZ], [0.075, 0.22, 0.04]),
+        ellipsoid("hamR", [thighX, p.legLength * 0.68, legBackZ], [0.075, 0.22, 0.04]),
       ],
     },
     {
       muscle: "glutes",
       parts: [
-        {
-          id: "glute_l",
-          position: [-p.hipWidth / 4, p.legLength + 0.02, -0.1],
-          shape: { kind: "sphere", radius: 0.11 },
-        },
-        {
-          id: "glute_r",
-          position: [p.hipWidth / 4, p.legLength + 0.02, -0.1],
-          shape: { kind: "sphere", radius: 0.11 },
-        },
+        ellipsoid("gluteL", [-p.hipWidth * 0.18, p.legLength + 0.01, -p.hipDepth * 0.58], [p.hipWidth * 0.22, 0.13, 0.085]),
+        ellipsoid("gluteR", [p.hipWidth * 0.18, p.legLength + 0.01, -p.hipDepth * 0.58], [p.hipWidth * 0.22, 0.13, 0.085]),
       ],
     },
     {
       muscle: "calves",
       parts: [
-        {
-          id: "calf_l",
-          position: [-p.hipWidth / 2 + 0.05, p.legLength * 0.28, -0.07],
-          shape: { kind: "capsule", radius: 0.07, length: 0.26 },
-        },
-        {
-          id: "calf_r",
-          position: [p.hipWidth / 2 - 0.05, p.legLength * 0.28, -0.07],
-          shape: { kind: "capsule", radius: 0.07, length: 0.26 },
-        },
+        ellipsoid("calfL", [-thighX, p.legLength * 0.28, legBackZ * 0.85], [0.058, 0.16, 0.045]),
+        ellipsoid("calfR", [thighX, p.legLength * 0.28, legBackZ * 0.85], [0.058, 0.16, 0.045]),
       ],
     },
   ];
+}
+
+function capsule(
+  id: string,
+  position: Vec3,
+  radius: number,
+  length: number,
+  rotation?: Vec3,
+  scale?: Vec3,
+): BodyPart {
+  return { id, position, rotation, scale, shape: { kind: "capsule", radius, length } };
+}
+
+function ellipsoid(id: string, position: Vec3, radius: Vec3, rotation?: Vec3): BodyPart {
+  return { id, position, rotation, shape: { kind: "ellipsoid", radius } };
 }
