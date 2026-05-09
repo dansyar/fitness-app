@@ -14,11 +14,10 @@ import {
 } from "react";
 import type { Group } from "three";
 import {
-  PROPORTIONS,
+  STANDARD_PROPORTIONS,
   buildAnatomyDetails,
   buildBody,
   buildMuscleOverlays,
-  type Gender,
   type AnatomyDetail,
   type AnatomyTone,
   type BodyPart,
@@ -27,8 +26,8 @@ import {
 import type { MuscleGroupId } from "@/lib/muscles";
 import { useWorkoutStore } from "@/store/workout-store";
 
-const BASE_TISSUE_COLOR = "#b95b4d";
-const MUSCLE_COLOR = "#d9654d";
+const BASE_TISSUE_COLOR = "#a84438";
+const MUSCLE_COLOR = "#d85b45";
 const HOVER_COLOR = "#ff7b55";
 const SELECTED_COLOR = "#e9432f";
 const ANATOMY_COLORS: Record<AnatomyTone, string> = {
@@ -40,12 +39,11 @@ const ANATOMY_COLORS: Record<AnatomyTone, string> = {
 const CAMERA_TARGET_Y = 0.12;
 
 interface MannequinSceneProps {
-  gender: Gender;
   viewCommand: number;
 }
 
-export function MannequinScene({ gender, viewCommand }: MannequinSceneProps) {
-  const proportions = PROPORTIONS[gender];
+export function MannequinScene({ viewCommand }: MannequinSceneProps) {
+  const proportions = STANDARD_PROPORTIONS;
   const body = useMemo(() => buildBody(proportions), [proportions]);
   const overlays = useMemo(() => buildMuscleOverlays(proportions), [proportions]);
   const anatomyDetails = useMemo(() => buildAnatomyDetails(proportions), [proportions]);
@@ -119,11 +117,12 @@ function SceneLights() {
       <ambientLight intensity={0.52} />
       <directionalLight
         position={[2.6, 4.5, 3.5]}
-        intensity={1.2}
+        intensity={1.28}
         castShadow
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
       />
+      <hemisphereLight args={["#ffe2d3", "#38130f", 0.42]} />
       <directionalLight position={[-3.8, 2.5, 2]} intensity={0.42} color="#f6dfcf" />
       <directionalLight position={[0, 3.2, -4.5]} intensity={0.58} color="#f0ddd0" />
     </>
@@ -256,8 +255,8 @@ function PartMesh({
   const material = (
     <meshStandardMaterial
       color={color}
-      roughness={0.58}
-      metalness={0.02}
+      roughness={0.5}
+      metalness={0.01}
       emissive={emissiveIntensity > 0 ? HOVER_COLOR : "#000000"}
       emissiveIntensity={emissiveIntensity}
       transparent={opacity < 1 || emissiveIntensity > 0}
@@ -295,7 +294,7 @@ function PartMesh({
           receiveShadow
           {...handlers}
         >
-          <sphereGeometry args={[part.shape.radius, 24, 24]} />
+          <sphereGeometry args={[part.shape.radius, 48, 32]} />
           {material}
         </mesh>
       );
@@ -309,14 +308,14 @@ function PartMesh({
           receiveShadow
           {...handlers}
         >
-          <sphereGeometry args={[1, 32, 20]} />
+          <sphereGeometry args={[1, 48, 32]} />
           {material}
         </mesh>
       );
     case "capsule":
       return (
         <Capsule
-          args={[part.shape.radius, part.shape.length, 16, 32]}
+          args={[part.shape.radius, part.shape.length, 24, 48]}
           position={part.position}
           rotation={part.rotation}
           scale={part.scale}
@@ -347,7 +346,7 @@ function MuscleGroup({ overlay, interacting }: { overlay: MuscleOverlay; interac
       {overlay.parts.map((part) => (
         <PartMesh
           key={part.id}
-          part={inflate(part, 0.012)}
+          part={inflate(part, 0.018)}
           color={color}
           emissiveIntensity={intensity}
           opacity={opacity}
