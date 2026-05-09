@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
-    "vercel-build": "prisma generate && next build",
+    "vercel-build": "prisma generate && node prisma/sql/run-migration.mjs && next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate",
