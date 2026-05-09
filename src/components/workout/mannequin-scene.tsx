@@ -123,12 +123,9 @@ function CameraRig({
   controlsRef: RefObject<ElementRef<typeof OrbitControls> | null>;
 }) {
   const targetAzimuth = useRef(view === "front" ? 0 : Math.PI);
-  const currentView = useRef(view);
   const isTransitioning = useRef(false);
 
   useEffect(() => {
-    if (currentView.current === view) return;
-    currentView.current = view;
     targetAzimuth.current = view === "front" ? 0 : Math.PI;
     isTransitioning.current = true;
   }, [view]);
